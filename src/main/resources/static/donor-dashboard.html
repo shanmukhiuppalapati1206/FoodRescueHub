@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Donor Dashboard - Food Rescue Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; padding-top: 40px; }
+        .card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .stepper-box { font-size: 0.85rem; background: #fff; border-left: 4px solid #198754; padding: 10px; border-radius: 6px; }
+        #notificationContainer { position: fixed; top: 20px; right: 20px; z-index: 1050; width: 350px; }
+        .impact-card { background: linear-gradient(135deg, #198754 0%, #0f5132 100%); color: white; border: none; }
+        .impact-badge { background: rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 6px 12px; font-weight: bold; }
+        .ngo-badge-link { cursor: pointer; text-decoration: underline; color: #0d6efd; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="notificationContainer"></div>
+
+<!-- Profile Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Donor Profile & Settings</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-content p-4 border-0">
+                <form id="profileForm" onsubmit="updateProfile(event)">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Donor ID (Read-only)</label>
+                        <input type="text" id="profileId" class="form-control" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Organization Name</label>
+                        <input type="text" id="profileName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Phone Number</label>
+                        <input type="text" id="profilePhone" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Location / Address (Updates Geolocation)</label>
+                        <input type="text" id="profileLocation" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NGO Inspect / Compare Modal with Distance -->
+<div class="modal fade" id="ngoInspectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">NGO Partner Details & Logistics</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p><strong>NGO ID:</strong> <span id="inspectNgoId">-</span></p>
+                <p><strong>Organization Name:</strong> <span id="inspectNgoName">-</span></p>
+                <p><strong>Contact Phone:</strong> <span id="inspectNgoPhone">-</span></p>
+                <p><strong>Registered Address:</strong> <span id="inspectNgoLocation">-</span></p>
+                <p><strong>Calculated Distance:</strong> <span id="inspectNgoDistance" class="badge bg-secondary">-</span></p>
+                <div class="alert alert-info small mb-0">
+                    💡 Compare this partner's distance and contact info to optimize pickup efficiency and avoid spoilage.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Welcome, Donor (<span id="donorNameDisplay">D101</span>)</h2>
+            <p class="text-muted mb-0">List surplus food items to feed the community with real-time auto-matching.</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#profileModal" onclick="openProfile()">👤 Profile</button>
+            <a href="index.html" class="btn btn-outline-danger btn-sm">Logout</a>
+        </div>
+    </div>
+
+    <!-- ⭐ Live Donor Impact & Sustainability Dashboard -->
+    <div class="card p-4 mb-4 impact-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0 fw-bold">🌱 Your Environmental & Community Impact</h4>
+            <span class="impact-badge" id="donorTierBadge">Bronze Rescuer</span>
+        </div>
+        <div class="row text-center g-3">
+            <div class="col-md-3">
+                <div class="p-2 border rounded border-light-subtle bg-white bg-opacity-10">
+                    <h2 class="fw-bold mb-0" id="impactKg">0 kg</h2>
+                    <small class="text-white-50">Surplus Food Shared</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-2 border rounded border-light-subtle bg-white bg-opacity-10">
+                    <h2 class="fw-bold mb-0" id="impactMeals">~0</h2>
+                    <small class="text-white-50">Estimated Meals Provided</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-2 border rounded border-light-subtle bg-white bg-opacity-10">
+                    <h2 class="fw-bold mb-0" id="impactCo2">0 kg</h2>
+                    <small class="text-white-50">CO₂ Emissions Prevented</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-2 border rounded border-light-subtle bg-white bg-opacity-10">
+                    <h2 class="fw-bold mb-0" id="impactCompleted">0</h2>
+                    <small class="text-white-50">Successful Deliveries</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Donation Form -->
+    <div class="card p-4 mb-4">
+        <h4 class="mb-3 text-primary">Add Bulk Food Donation</h4>
+        <form id="donationForm">
+            <div class="mb-3">
+                <label class="form-label">Food Item Description</label>
+                <input type="text" id="foodItem" class="form-control" placeholder="e.g. Vegetable Biryani / Grains / Fruits" required>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Dietary Type</label>
+                    <select id="dietaryType" class="form-select"><option value="Veg">Veg</option><option value="Non-Veg">Non-Veg</option></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Quantity (in kg / portions)</label>
+                    <input type="number" id="quantity" class="form-control" placeholder="e.g. 15" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Shelf Life Value</label>
+                    <input type="number" id="expiryValue" class="form-control" value="4" required>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label class="form-label">Shelf Life Unit</label>
+                    <select id="expiryUnit" class="form-select">
+                        <option value="Hours">Hours (For cooked meals)</option>
+                        <option value="Days">Days (For fresh produce & fruits)</option>
+                        <option value="Weeks">Weeks (For grains & packaged items)</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold">Submit & Auto-Match Donation</button>
+        </form>
+    </div>
+
+    <!-- Live Allocation Feed -->
+    <div class="card p-4">
+        <h4 class="mb-3 text-success">Live Allocation Feed & Requests</h4>
+        <div id="donorListContainer"><p class="text-muted">Loading live feed...</p></div>
+    </div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const donorId = urlParams.get('id') || 'D101';
+    document.getElementById('donorNameDisplay').innerText = donorId;
+
+    let previousDonationStates = {};
+
+    function showNotification(title, message, type = 'success') {
+        const container = document.getElementById('notificationContainer');
+        const toastId = 'toast-' + Date.now();
+        const bgClass = type === 'success' ? 'bg-success text-white' : 'bg-primary text-white';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast show mb-2 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header ${bgClass} d-flex justify-content-between">
+                    <strong class="me-auto">✓ ${title}</strong>
+                    <button type="button" class="btn-close btn-close-white" onclick="document.getElementById('${toastId}').remove()"></button>
+                </div>
+                <div class="toast-body bg-white text-dark">
+                    ${message}
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', toastHtml);
+
+        setTimeout(() => {
+            const el = document.getElementById(toastId);
+            if (el) el.remove();
+        }, 6000);
+    }
+
+    window.onload = function() {
+        loadDonorData();
+        loadImpactData();
+        setInterval(loadDonorData, 5000);
+        setInterval(loadImpactData, 10000);
+    };
+
+    async function openProfile() {
+        try {
+            const res = await fetch(`/api/user-profile?id=${donorId}`);
+            if (res.ok) {
+                const user = await res.json();
+                document.getElementById('profileId').value = user.id;
+                document.getElementById('profileName').value = user.name;
+                document.getElementById('profilePhone').value = user.phone;
+                document.getElementById('profileLocation').value = user.location;
+            }
+        } catch (e) {}
+    }
+
+    async function inspectNgo(ngoId) {
+        try {
+            const res = await fetch(`/api/inspect-ngo?ngoId=${ngoId}&donorId=${donorId}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('inspectNgoId').innerText = data.id;
+                document.getElementById('inspectNgoName').innerText = data.name;
+                document.getElementById('inspectNgoPhone').innerText = data.phone;
+                document.getElementById('inspectNgoLocation').innerText = data.location;
+                document.getElementById('inspectNgoDistance').innerText = data.distanceKm + ' km away';
+                
+                const modal = new bootstrap.Modal(document.getElementById('ngoInspectModal'));
+                modal.show();
+            }
+        } catch (e) {
+            alert('Could not load NGO details.');
+        }
+    }
+
+    async function updateProfile(e) {
+        e.preventDefault();
+        const formData = new URLSearchParams();
+        formData.append('id', donorId);
+        formData.append('name', document.getElementById('profileName').value);
+        formData.append('phone', document.getElementById('profilePhone').value);
+        formData.append('location', document.getElementById('profileLocation').value);
+
+        const res = await fetch('/api/update-profile', { method: 'POST', body: formData });
+        alert(await res.text());
+        document.getElementById('donorNameDisplay').innerText = document.getElementById('profileName').value;
+        bootstrap.Modal.getInstance(document.getElementById('profileModal')).hide();
+    }
+
+    async function loadImpactData() {
+        try {
+            const res = await fetch(`/api/donor-impact?donorId=${donorId}`);
+            const data = await res.json();
+            document.getElementById('impactKg').innerText = data.totalKg + ' kg';
+            document.getElementById('impactMeals').innerText = '~' + data.estimatedMeals;
+            document.getElementById('impactCo2').innerText = data.co2PreventedKg + ' kg';
+            document.getElementById('impactCompleted').innerText = data.completedDonations;
+            document.getElementById('donorTierBadge').innerText = data.tierBadge;
+        } catch (e) {}
+    }
+
+    document.getElementById('donationForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new URLSearchParams();
+        formData.append('donorId', donorId);
+        formData.append('foodItem', document.getElementById('foodItem').value);
+        formData.append('dietaryType', document.getElementById('dietaryType').value);
+        formData.append('quantity', document.getElementById('quantity').value);
+        formData.append('expiryValue', document.getElementById('expiryValue').value);
+        formData.append('expiryUnit', document.getElementById('expiryUnit').value);
+
+        const response = await fetch('/api/add-donation', { method: 'POST', body: formData });
+        alert(await response.text());
+        document.getElementById('donationForm').reset();
+        loadDonorData();
+        loadImpactData();
+    });
+
+    const stages = ["AVAILABLE", "PENDING", "ACCEPTED", "DELIVERED"];
+
+    function renderStepper(currentStage) {
+        let mappedStage = currentStage;
+        if (currentStage === "REQUESTED") mappedStage = "PENDING";
+        else if (currentStage === "MATCHED" || currentStage === "ALLOCATED" || currentStage === "PICKUP SCHEDULED" || currentStage === "PICKED UP") mappedStage = "ACCEPTED";
+
+        let currentIndex = stages.indexOf(mappedStage);
+        if (currentIndex === -1) currentIndex = 0;
+
+        let html = `<div class="stepper-box mb-2"><strong>Status:</strong><ul class="list-unstyled mb-0 mt-1">`;
+        stages.forEach((stage, idx) => {
+            let icon = "○";
+            let style = "color: #6c757d;";
+
+            if (idx < currentIndex) {
+                icon = "✓";
+                style = "color: #198754; font-weight: bold;";
+            } else if (idx === currentIndex) {
+                icon = "🚚";
+                style = "color: #198754; font-weight: bold;";
+            }
+
+            html += `<li style="${style}">${icon} ${stage}</li>`;
+        });
+        html += `</ul></div>`;
+        return html;
+    }
+
+    async function loadDonorData() {
+        try {
+            const response = await fetch(`/api/donor-requests?donorId=${donorId}`);
+            const donations = await response.json();
+            const container = document.getElementById('donorListContainer');
+
+            if (!donations || donations.length === 0) {
+                container.innerHTML = `<p class="text-muted">No active donations posted yet.</p>`;
+                return;
+            }
+
+            donations.forEach(d => {
+                if (previousDonationStates[d.donationId] && previousDonationStates[d.donationId] !== d.status) {
+                    if (d.status === 'ACCEPTED') {
+                        showNotification("Donation Accepted", `Your donation of <strong>${d.foodItem}</strong> has been accepted by NGO: <strong>${d.acceptedNgoId}</strong>.`);
+                    } else if (d.status === 'PENDING') {
+                        showNotification("New NGO Request", `An NGO has requested your item: <strong>${d.foodItem}</strong>.`);
+                    }
+                }
+                previousDonationStates[d.donationId] = d.status;
+            });
+
+            let html = `<div class="table-responsive"><table class="table table-hover align-middle">
+                <thead><tr><th>ID & Item</th><th>Status</th><th>Workflow Status</th><th>NGO Requests / Approvals</th></tr></thead><tbody>`;
+
+            donations.forEach(d => {
+                let stepperHtml = renderStepper(d.trackingStage);
+                let nextActionBtn = "";
+
+                if (d.trackingStage === "DELIVERED" || d.status === "DELIVERED") {
+                    nextActionBtn = `<span class="badge bg-success mt-1">Delivery Confirmed</span>`;
+                }
+
+                let ngoActionHtml = `<span class="text-muted">Waiting for requests...</span>`;
+                if (d.status === 'ACCEPTED' || d.trackingStage === 'ACCEPTED') {
+                    ngoActionHtml = `<span class="badge bg-success">Assigned NGO: <span class="ngo-badge-link text-white" onclick="inspectNgo('${d.acceptedNgoId}')">${d.acceptedNgoId}</span></span>`;
+                } else if (d.status === 'DELIVERED' || d.trackingStage === 'DELIVERED') {
+                    ngoActionHtml = `<span class="badge bg-secondary">Completed & Closed</span>`;
+                } else if (d.requestedByNgoIds && d.requestedByNgoIds.length > 0) {
+                    ngoActionHtml = `<ul class="list-unstyled mb-0">`;
+                    d.requestedByNgoIds.forEach(ngo => {
+                        ngoActionHtml += `<li class="mb-1">
+                            <span class="ngo-badge-link" onclick="inspectNgo('${ngo}')">${ngo}</span> 
+                            <button class="btn btn-sm btn-success py-0 ms-2" onclick="respond('${d.donationId}', '${ngo}', true)">Accept</button> 
+                            <button class="btn btn-sm btn-danger py-0 ms-1" onclick="respond('${d.donationId}', '${ngo}', false)">Reject</button>
+                        </li>`;
+                    });
+                    ngoActionHtml += `</ul>`;
+                }
+
+                html += `<tr>
+                    <td><strong>#${d.donationId}</strong><br>${d.foodItem} (${d.quantity}kg)</td>
+                    <td><span class="badge bg-info text-dark">${d.status}</span></td>
+                    <td>${stepperHtml} ${nextActionBtn}</td>
+                    <td>${ngoActionHtml}</td>
+                </tr>`;
+            });
+
+            html += `</tbody></table></div>`;
+            container.innerHTML = html;
+        } catch (err) {}
+    }
+
+    async function respond(donationId, ngoId, accept) {
+        const formData = new URLSearchParams();
+        formData.append('donationId', donationId);
+        formData.append('ngoId', ngoId);
+        formData.append('accept', accept);
+        await fetch('/api/respond-request', { method: 'POST', body: formData });
+        loadDonorData();
+        loadImpactData();
+    }
+</script>
+</body>
+</html>
